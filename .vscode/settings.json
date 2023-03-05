@@ -1,0 +1,25 @@
+{
+    "files.associations": {
+        "lwevt_types.h": "c",
+        "lwevt_type.h": "c",
+        "lwevt.h": "c",
+        "string.h": "c",
+        "lwevt_opt.h": "c",
+        "lwbtn.h": "c",
+        "lwbtn_opt.h": "c",
+        "*.txt": "c",
+        "random": "c",
+        "ecc.h": "c",
+        "*.bin": "c",
+        "windows.h": "c",
+        "aes.h": "c",
+        "mbedtls_config.h": "c",
+        "bitset": "c",
+        "string": "c",
+        "vector": "c",
+        "memory": "c",
+        "string_view": "c",
+        "system_error": "c"
+    },
+    "esbonio.sphinx.confDir": ""
+}
