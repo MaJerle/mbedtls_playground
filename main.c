@@ -88,12 +88,12 @@ main(void) {
 
     /* Test HASH - calculate hash of raw data and compare with calculated one from python script */
     {
-        uint8_t hash_calculated[32];
+        uint8_t hash_calc[32];
 
         printf("HASH SHA256 calculation\r\n");
-        res = mbedtls_sha256(data_raw_input, sizeof(data_raw_input), hash_calculated, 0);
+        res = mbedtls_sha256(data_raw_input, sizeof(data_raw_input), hash_calc, 0);
         printf("mbedtls_sha256: %d\r\n", res);
-        if (memcmp(hash_calculated, data_raw_hash_digest, sizeof(hash_calculated)) == 0) {
+        if (memcmp(hash_calc, data_raw_hash_digest, sizeof(hash_calc)) == 0) {
             printf("Hash is equal\r\n");
         } else {
             printf("Hash does not match\r\n");
@@ -168,7 +168,7 @@ main(void) {
         res = mbedtls_ecp_point_read_binary(&group, &p, ecc_public_key_uncompressed_bin,
                                             sizeof(ecc_public_key_uncompressed_bin));
         printf("mbedtls_ecp_point_read_binary: %d\r\n", res);
-        /* How to verify?? */
+        /* TODO: How to verify?? */
 
         /* Free objects */
         mbedtls_ecdsa_free(&ecdsa_ctx);
@@ -294,7 +294,7 @@ main(void) {
         mbedtls_aes_context aes_ctx;
         uint8_t aes_iv_tmp[sizeof(aes_iv)];
         uint8_t data_encrypted_output[(sizeof(data_raw_input) + 15) & ~15];
-        uint8_t hash_calculated[32];
+        uint8_t hash_calc[32];
 
         struct {
             uint16_t aes_bits;
@@ -344,11 +344,11 @@ main(void) {
             }
 
             /* Make a hash of the encrypted text and compare with refrence */
-            res = mbedtls_sha256(data_encrypted_output, sizeof(data_encrypted_output), hash_calculated, 0);
+            res = mbedtls_sha256(data_encrypted_output, sizeof(data_encrypted_output), hash_calc, 0);
             printf("mbedtls_sha256: %d\r\n", res);
 
             /* Compare for a match */
-            if (memcmp(hash_calculated, test_table[i].ref_enc_data_hash, sizeof(hash_calculated)) == 0) {
+            if (memcmp(hash_calc, test_table[i].ref_enc_data_hash, sizeof(hash_calc)) == 0) {
                 printf("Hash of encrypted data matches reference hash\r\n");
             } else {
                 printf("Hash of encrypted data does not match reference input\r\n");
