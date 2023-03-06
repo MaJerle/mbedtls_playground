@@ -85,8 +85,6 @@ const uint8_t data_encrypted_aes256_hash_digest[] = {
 int
 main(void) {
     volatile int res;
-    mbedtls_ecdsa_context ecdsa_ctx;
-    mbedtls_pk_context pubkey_ctx;
 
     /* Test HASH - calculate hash of raw data and compare with calculated one from python script */
     {
@@ -116,10 +114,14 @@ main(void) {
      */
 
     /* 
-     * Public key format:   DER/PEM (String based public key, --- BEGIN PUBLIC KEY --- type of message)
-     * Signature format :   DER     (70, 71 or 72 bytes long)
+     * PublicKey format:   DER/PEM (String based public key, --- BEGIN PUBLIC KEY --- type of message)
+     * Signature format:   DER     (70, 71 or 72 bytes long)
      */
     {
+        mbedtls_pk_context pubkey_ctx;
+
+        printf("Public key - ECDSA verification:\r\nPublicKey format: DER/PEM\r\nSignature format: DER\r\n\r\n");
+
         /* Parse public key */
         mbedtls_pk_init(&pubkey_ctx);
         res = mbedtls_pk_parse_public_key(&pubkey_ctx, ecc_public_key_text, sizeof(ecc_public_key_text));
@@ -129,100 +131,160 @@ main(void) {
         res = mbedtls_pk_verify(&pubkey_ctx, MBEDTLS_MD_SHA256, data_raw_hash_digest, sizeof(data_raw_hash_digest),
                                 signature_der, sizeof(signature_der));
         printf("mbedtls_pk_verify: %d\r\n", res);
-        printf("-----\r\n");
 
         /* Free objects */
         mbedtls_pk_free(&pubkey_ctx);
+
+        /* Done */
+        printf("-----\r\n");
     }
 
     /* 
-     * Public key format:   binary  (65-bytes long, 0x04 as first byte)
-     * Signature format :   DER     (70, 71 or 72 bytes long)
+     * PublicKey format:   binary  (65-bytes long, 0x04 as first byte)
+     * Signature format:   DER     (70, 71 or 72 bytes long)
      */
     {
-        printf("Public key - ECDSA verification with binary format\r\n");
+        mbedtls_ecdsa_context ecdsa_ctx;
+        mbedtls_ecp_group group;
+        mbedtls_ecp_point p;
+
+        printf("Public key - ECDSA verification:\r\nPublicKey format: Binary\r\nSignature format: DER\r\n\r\n");
 
         /* Parse public key */
         mbedtls_ecdsa_init(&ecdsa_ctx);
+        mbedtls_ecp_group_init(&group);
+        mbedtls_ecp_point_init(&p);
         mbedtls_ecp_group_load(&ecdsa_ctx.private_grp, MBEDTLS_ECP_DP_SECP256R1);
+
+        /* Parse and verify using private variables */
         res = mbedtls_ecp_point_read_binary(&ecdsa_ctx.private_grp, &ecdsa_ctx.private_Q,
                                             ecc_public_key_uncompressed_bin, sizeof(ecc_public_key_uncompressed_bin));
         printf("mbedtls_ecp_point_read_binary: %d\r\n", res);
-
-        /* Verify with DER native format support */
         res = mbedtls_ecdsa_read_signature(&ecdsa_ctx, data_raw_hash_digest, sizeof(data_raw_hash_digest),
                                            signature_der, sizeof(signature_der));
         printf("mbedtls_ecdsa_read_signature: %d\r\n", res);
+
+        /* Parse using new variables */
+        res = mbedtls_ecp_point_read_binary(&group, &p, ecc_public_key_uncompressed_bin,
+                                            sizeof(ecc_public_key_uncompressed_bin));
+        printf("mbedtls_ecp_point_read_binary: %d\r\n", res);
+        /* How to verify?? */
+
+        /* Free objects */
+        mbedtls_ecdsa_free(&ecdsa_ctx);
+        mbedtls_ecp_group_free(&group);
+        mbedtls_ecp_point_free(&p);
+
+        /* Done */
         printf("-----\r\n");
     }
 
     /* 
-     * Public key format:   binary  (65-bytes long, 0x04 as first byte)
-     * Signature format :   P1363   (64-bytes long, r|s)
+     * PublicKey format:   binary  (65-bytes long, 0x04 as first byte)
+     * Signature format:   P1363   (64-bytes long, r|s)
      */
     {
 #define SIGNATURE_LEN (sizeof(signature_p1363))
-
-        /* Parse public key in binary format */
-        printf("Parse public key in binary format\r\n");
-        mbedtls_ecdsa_init(&ecdsa_ctx);
-        mbedtls_ecp_group_load(&ecdsa_ctx.private_grp, MBEDTLS_ECP_DP_SECP256R1);
-        res = mbedtls_ecp_point_read_binary(&ecdsa_ctx.private_grp, &ecdsa_ctx.private_Q,
-                                            ecc_public_key_uncompressed_bin, sizeof(ecc_public_key_uncompressed_bin));
-        printf("mbedtls_ecp_point_read_binary: %d\r\n", res);
-        printf("-----\r\n");
-
-        /* Manually structure R and S components */
-        printf("Parse signature in P1363 format to r and s big numbers\r\n");
         mbedtls_mpi r, s;
+        mbedtls_ecp_group group;
+        mbedtls_ecp_point q;
+
+        printf("Public key - ECDSA verification:\r\nPublicKey format: Binary\r\nSignature format: P1363\r\n\r\n");
+
+        /* Initialize all modules */
         mbedtls_mpi_init(&r);
         mbedtls_mpi_init(&s);
-        mbedtls_mpi_read_binary(&r, signature_p1363, SIGNATURE_LEN / 2);
-        mbedtls_mpi_read_binary(&s, signature_p1363 + SIGNATURE_LEN / 2, SIGNATURE_LEN / 2);
+        mbedtls_ecp_point_init(&q);
+        mbedtls_ecp_group_init(&group);
+
+        /* Parse public key in binary format */
+        mbedtls_ecp_group_load(&group, MBEDTLS_ECP_DP_SECP256R1);
+        res = mbedtls_ecp_point_read_binary(&group, &q, ecc_public_key_uncompressed_bin,
+                                            sizeof(ecc_public_key_uncompressed_bin));
+        printf("mbedtls_ecp_point_read_binary: %d\r\n", res);
+
+        /* Parse signature in P1363 format to r and s big numbers */
+        res = mbedtls_mpi_read_binary(&r, signature_p1363, SIGNATURE_LEN / 2);
+        printf("mbedtls_mpi_read_binary: %d\r\n", res);
+        res = mbedtls_mpi_read_binary(&s, signature_p1363 + SIGNATURE_LEN / 2, SIGNATURE_LEN / 2);
+        printf("mbedtls_mpi_read_binary: %d\r\n", res);
 
         /* Run verify with ecdsa */
-        res = mbedtls_ecdsa_verify(&ecdsa_ctx.private_grp, data_raw_hash_digest, sizeof(data_raw_hash_digest),
-                                   &ecdsa_ctx.private_Q, &r, &s);
+        res = mbedtls_ecdsa_verify(&group, data_raw_hash_digest, sizeof(data_raw_hash_digest), &q, &r, &s);
         printf("mbedtls_ecdsa_verify: %d\r\n", res);
-        printf("-----\r\n");
 
         /* Free objects */
         mbedtls_mpi_free(&r);
         mbedtls_mpi_free(&s);
-        mbedtls_ecdsa_free(&ecdsa_ctx);
+        mbedtls_ecp_point_free(&q);
+        mbedtls_ecp_group_free(&group);
+
+        /* Done */
+        printf("-----\r\n");
 #undef SIGNATURE_LEN
     }
 
     /* 
-     * Public key format:   DER/PEM (String based public key, --- BEGIN PUBLIC KEY --- type of message)
-     * Signature format :   P1363   (64-bytes long, r|s)
+     * PublicKey format:   DER/PEM (String based public key, --- BEGIN PUBLIC KEY --- type of message)
+     * Signature format:   P1363   (64-bytes long, r|s)
+     * 
+     * Steps to follow:
+     * 
+     * - Parse public key with PK module
+     * - Extract EC parameters -> generate key pair
+     * - Extract group, D and Q values from the pair
+     * - Parse P1363 format into 2 big numbers R and S
+     * - Call ecdsa verification function
      */
     {
 #define SIGNATURE_LEN (sizeof(signature_p1363))
-        /* Parse public key */
-        mbedtls_pk_init(&pubkey_ctx);
-        res = mbedtls_pk_parse_public_key(&pubkey_ctx, ecc_public_key_text, sizeof(ecc_public_key_text));
-        printf("mbedtls_pk_parse_public_key: %d\r\n", res);
-        /* TODO: get pair */
-
-        /* Parse P1363 signature */
+        mbedtls_pk_context pubkey_ctx;
+        mbedtls_ecp_keypair* pair;
+        mbedtls_ecp_group group;
+        mbedtls_mpi d;
+        mbedtls_ecp_point q;
         mbedtls_mpi r, s;
+
+        printf("Public key - ECDSA verification:\r\nPublicKey format: DER/PEM\r\nSignature format: P1363\r\n\r\n");
+
+        /* Initialize all values to its default state - avoid any segmentation faults */
+        mbedtls_pk_init(&pubkey_ctx);
         mbedtls_mpi_init(&r);
         mbedtls_mpi_init(&s);
+        mbedtls_ecp_group_init(&group);
+        mbedtls_mpi_init(&d);
+        mbedtls_ecp_point_init(&q);
+
+        /* Parse public key */
+        res = mbedtls_pk_parse_public_key(&pubkey_ctx, ecc_public_key_text, sizeof(ecc_public_key_text));
+        printf("mbedtls_pk_parse_public_key: %d\r\n", res);
+
+        /* Get EC pair from parsed public key */
+        pair = mbedtls_pk_ec(pubkey_ctx);
+        printf("mbedtls_pk_ec: %p\r\n", (void*)pair);
+
+        /* Export data from the pair - required for ECDSA verification purpose */
+        res = mbedtls_ecp_export(pair, &group, &d, &q);
+        printf("mbedtls_ecp_export: %d\r\n", res);
+
+        /* Parse P1363 signature to 2 big nums */
         mbedtls_mpi_read_binary(&r, signature_p1363, SIGNATURE_LEN / 2);
         mbedtls_mpi_read_binary(&s, signature_p1363 + SIGNATURE_LEN / 2, SIGNATURE_LEN / 2);
 
-        /* Get ECDSA verify context from pk structure */
-        mbedtls_ecdsa_context* ctx = pubkey_ctx.private_pk_ctx;
-        res = mbedtls_ecdsa_verify(&ctx->private_grp, data_raw_hash_digest, sizeof(data_raw_hash_digest),
-                                   &ctx->private_Q, &r, &s);
+        /* Get ECDSA verify context from parsed pk structure */
+        res = mbedtls_ecdsa_verify(&group, data_raw_hash_digest, sizeof(data_raw_hash_digest), &q, &r, &s);
         printf("mbedtls_ecdsa_verify: %d\r\n", res);
-        printf("-----\r\n");
 
         /* Free objects */
+        mbedtls_pk_free(&pubkey_ctx);
         mbedtls_mpi_free(&r);
         mbedtls_mpi_free(&s);
-        mbedtls_pk_free(&pubkey_ctx);
+        mbedtls_ecp_group_free(&group);
+        mbedtls_mpi_free(&d);
+        mbedtls_ecp_point_free(&q);
+
+        /* Done */
+        printf("-----\r\n");
 #undef SIGNATURE_LEN
     }
     return 0;

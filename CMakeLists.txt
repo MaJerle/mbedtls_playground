@@ -6,7 +6,7 @@ project(mbedtls_playground)
 # Set as executable
 add_executable(${PROJECT_NAME})
 
-file(GLOB MBEDTLS_FILES ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/*.c )
+file(GLOB MBEDTLS_FILES ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/*.c)
 
 # Add key executable block
 target_sources(${PROJECT_NAME} PUBLIC
@@ -26,7 +26,6 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC
     WIN32
     _DEBUG
     CONSOLE
-    LWBTN_DEV
 )
 
 # Compiler options

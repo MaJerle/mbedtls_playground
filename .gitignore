@@ -30,6 +30,7 @@
 !version.txt
 !packaging/keys/*.txt
 RTE/
+!keys/*.txt
 
 *debug
 *output
