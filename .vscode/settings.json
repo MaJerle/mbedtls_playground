@@ -22,7 +22,9 @@
         "system_error": "c",
         "x509.h": "c",
         "*.hexarr": "c",
-        "bignum_core.h": "c"
+        "bignum_core.h": "c",
+        "bignum.h": "c",
+        "pk.h": "c"
     },
     "esbonio.sphinx.confDir": ""
 }

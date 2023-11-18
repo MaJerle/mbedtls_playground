@@ -14,35 +14,35 @@
  * This demo code demonstrates how we could implement a challenge-response 
  * implementation to detect if device is genuine, using ECDSA signature and device certificate
  * 
- * Root certificate   -> self signed
+ * OEM certificate    -> self signed
  * Device certificate -> signed by device
  */
 
-static uint8_t ec_root_ca_str[] = {
-#include "certificates/ec_root.crt.hexarr"
-    ,
-    0,
-};
-static uint8_t ec_root_key_str[] = {
-#include "certificates/ec_root.key.hexarr"
-    ,
-    0,
-};
+static uint8_t ec_oem_ca_str[] = {
+#include "certificates/ec_oem.crt.hexarr"
+    , 0};
+static uint8_t ec_oem_key_str[] = {
+#include "certificates/ec_oem.key.hexarr"
+    , 0};
+static uint8_t ec_oem_pubkey_str[] = {
+#include "certificates/ec_oem_pub.key.hexarr"
+    , 0};
 static uint8_t ec_device_ca_str[] = {
 #include "certificates/ec_device.crt.hexarr"
-    ,
-    0,
-};
+    , 0};
 static uint8_t ec_device_key_str[] = {
 #include "certificates/ec_device.key.hexarr"
-    ,
-    0,
-};
+    , 0};
+static uint8_t ec_device_pubkey_str[] = {
+#include "certificates/ec_device_pub.key.hexarr"
+    , 0};
 
-static mbedtls_x509_crt crt_root;
-static mbedtls_pk_context key_root;
+static mbedtls_x509_crt crt_oem;
+static mbedtls_pk_context key_oem;
+static mbedtls_pk_context pubkey_oem;
 static mbedtls_x509_crt crt_device;
 static mbedtls_pk_context key_device;
+static mbedtls_pk_context pubkey_device;
 
 static uint8_t hash[32];
 static uint8_t signature[128];
@@ -61,12 +61,15 @@ cert_playground(void) {
     int ret;
     uint32_t flags = 0;
 
-    /* Parse root certificate and private key -> self signed certificate, root of trust */
-    mbedtls_x509_crt_init(&crt_root);
-    ret = mbedtls_x509_crt_parse(&crt_root, ec_root_ca_str, sizeof(ec_root_ca_str));
+    /* Parse oem certificate and private key -> self signed certificate, oem of trust */
+    mbedtls_x509_crt_init(&crt_oem);
+    ret = mbedtls_x509_crt_parse(&crt_oem, ec_oem_ca_str, sizeof(ec_oem_ca_str));
     printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
-    mbedtls_pk_init(&key_root);
-    ret = mbedtls_pk_parse_key(&key_root, ec_root_key_str, sizeof(ec_root_key_str), NULL, 0, NULL, NULL);
+    mbedtls_pk_init(&key_oem);
+    ret = mbedtls_pk_parse_key(&key_oem, ec_oem_key_str, sizeof(ec_oem_key_str), NULL, 0, NULL, NULL);
+    printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
+    mbedtls_pk_init(&pubkey_oem);
+    ret = mbedtls_pk_parse_public_key(&pubkey_oem, ec_oem_pubkey_str, sizeof(ec_oem_pubkey_str));
     printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
 
     /* Parse device certificate and its private key -> signed by trusted private key */
@@ -75,6 +78,9 @@ cert_playground(void) {
     printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
     mbedtls_pk_init(&key_device);
     ret = mbedtls_pk_parse_key(&key_device, ec_device_key_str, sizeof(ec_device_key_str), NULL, 0, NULL, NULL);
+    printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
+    mbedtls_pk_init(&pubkey_device);
+    ret = mbedtls_pk_parse_public_key(&pubkey_device, ec_device_pubkey_str, sizeof(ec_device_pubkey_str));
     printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
 
     /* DEVICE SIDE START */
@@ -93,21 +99,26 @@ cert_playground(void) {
     /* DEVICE SIDE END */
 
     /* HOST SIDE START */
+    ret = mbedtls_pk_verify(&pubkey_device, MBEDTLS_MD_SHA256, hash, sizeof(hash), signature, signature_len);
+    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
 
     /* Host receives certificate and signature (signed with private key) */
     /* Host does the certificate check, if it has been signed by manufacturing private key */
-    ret = mbedtls_x509_crt_verify(&crt_device, &crt_root, NULL, NULL, &flags, NULL, NULL);
+    ret = mbedtls_x509_crt_verify(&crt_device, &crt_oem, NULL, NULL, &flags, NULL, NULL);
     printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
     if (ret != 0) {
         printf("Invalid certificate. Hard error, potential clone detected!\r\n");
+    } else {
+        /* Verify signature at this point */
+        ret = mbedtls_pk_verify(&crt_device.pk, MBEDTLS_MD_SHA256, hash, sizeof(hash), signature, signature_len);
+        printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
+        if (ret != 0) {
+            printf("Signature not signed by device private key. Hard error, potential clone detected!\r\n");
+        }
     }
 
-    /* Verify signature at this point */
-    ret = mbedtls_pk_verify(&crt_device.pk, MBEDTLS_MD_SHA256, hash, sizeof(hash), signature, signature_len);
-    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
-    if (ret != 0) {
-        printf("Signature not signed by device private key. Hard error, potential clone detected!\r\n");
-    }
+    /* Here all has to be freed, or it won't work indeed */
+    mbedtls_pk_free(&key_oem);
 
     /* HOST SIDE END */
 

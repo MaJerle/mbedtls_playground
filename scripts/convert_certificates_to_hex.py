@@ -12,7 +12,8 @@ for file in glob.glob(os.path.join(path, "*.crt"))+glob.glob(os.path.join(path, 
         content = content.replace("\r\n", "\n")
         content = str.encode(content)
         
-    output = ','.join([hex(val) for val in content])
+    # Generate output as hex with 0x00 at the end
+    output = ','.join([hex(val) for val in content]) + ',0x00'
     with open(file+".hexarr", "w") as f:
         f.write(output)
 
