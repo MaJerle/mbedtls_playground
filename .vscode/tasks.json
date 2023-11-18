@@ -14,6 +14,18 @@
             "problemMatcher": []
         },
         {
+            "type": "shell",
+            "label": "Package: Convert certificates to arrhex files",
+            "command": "python",
+            "args": [
+                "scripts/convert_certificates_to_hex.py",
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
             "type": "cppbuild",
             "label": "Build project",
             "command": "cmake",

@@ -19,7 +19,10 @@
         "vector": "c",
         "memory": "c",
         "string_view": "c",
-        "system_error": "c"
+        "system_error": "c",
+        "x509.h": "c",
+        "*.hexarr": "c",
+        "bignum_core.h": "c"
     },
     "esbonio.sphinx.confDir": ""
 }

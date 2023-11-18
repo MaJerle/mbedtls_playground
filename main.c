@@ -82,9 +82,54 @@ const uint8_t data_encrypted_aes256_hash_digest[] = {
 #include "keys/data_encrypted_aes256_hash_digest_array.txt"
 };
 
+extern int cert_playground(void);
+
 int
 main(void) {
     volatile int res;
+
+    cert_playground();
+    return 0;
+
+    /* Convert unique ID to very random one way function string + use SHA2 as a result */
+    {
+        uint8_t hash_calc[32], val;
+        mbedtls_sha256_context sha_ctx;
+
+        /* List of some devices with its random UID numbers */
+        uint8_t device_ids[][12] = {
+            {0x43, 0x02, 0x33, 0x07, 0x36, 0x31, 0x47, 0x32, 0x06, 0xE3, 0x00, 0x30},
+            {0x43, 0x02, 0x25, 0x07, 0x36, 0x31, 0x47, 0x32, 0x06, 0xCF, 0x00, 0x30},
+            {0x43, 0x02, 0x24, 0x07, 0x36, 0x31, 0x47, 0x32, 0x06, 0xD1, 0x00, 0x30},
+        };
+
+        for (size_t i = 0; i < sizeof(device_ids) / sizeof(device_ids[0]); ++i) {
+            const uint8_t* id = &device_ids[i];
+            mbedtls_sha256_init(&sha_ctx);
+
+            /* Process all bytes */
+            for (size_t j = 0; j < sizeof(device_ids[0]) / sizeof(device_ids[0][0]); ++j) {
+                val = id[j];
+                mbedtls_sha256_update(&sha_ctx, &val, 1);
+                val = id[11 - j];
+                mbedtls_sha256_update(&sha_ctx, &val, 1);
+                val = id[j] ^ id[11 - j];
+                mbedtls_sha256_update(&sha_ctx, &val, 1);
+            }
+            mbedtls_sha256_finish(&sha_ctx, hash_calc);
+
+            printf("Index: %u; RAW device ID: ", (unsigned)i);
+            for (size_t index = 0; index < sizeof(device_ids[0]) / sizeof(device_ids[0][0]); ++index) {
+                printf("%02X", (unsigned)id[index]);
+            }
+            printf("; HASH: ");
+            for (size_t index = 0; index < sizeof(hash_calc) / sizeof(hash_calc[0]); ++index) {
+                printf("%02X", (unsigned)hash_calc[index]);
+            }
+            printf("\r\n");
+        }
+        return 0;
+    }
 
     /* Test HASH - calculate hash of raw data and compare with calculated one from python script */
     {
