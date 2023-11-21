@@ -44,7 +44,7 @@ static mbedtls_x509_crt crt_device;
 static mbedtls_pk_context key_device;
 static mbedtls_pk_context pubkey_device;
 
-static uint8_t hash[32];
+static uint8_t hash_sent[32], hash_received[32];
 static uint8_t signature[128];
 static size_t signature_len;
 
@@ -87,19 +87,25 @@ cert_playground(void) {
 
     /* Demonstrate that device will sign the challenge with its private hey */
     /* Device does the hash of the challenge -> whatever random value, with SHA-256 */
-    for (size_t i = 0; i < sizeof(hash); ++i) {
-        hash[i] = i;
+    for (size_t i = 0; i < sizeof(hash_sent); ++i) {
+        hash_sent[i] = i;
     }
 
     /* Device signs the hash and sends signature to the host */
-    ret = mbedtls_pk_sign(&key_device, MBEDTLS_MD_SHA256, hash, sizeof(hash), signature, sizeof(signature),
+    ret = mbedtls_pk_sign(&key_device, MBEDTLS_MD_SHA256, hash_sent, sizeof(hash_sent), signature, sizeof(signature),
                           &signature_len, fn_rng, NULL);
     printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
 
     /* DEVICE SIDE END */
 
     /* HOST SIDE START */
-    ret = mbedtls_pk_verify(&pubkey_device, MBEDTLS_MD_SHA256, hash, sizeof(hash), signature, signature_len);
+    /* We received the hash, store it to the received variable */
+    memcpy(hash_received, hash_sent, sizeof(hash_sent));
+
+    /* Verify if hash has been signed by the private key of our device. Use pubkey for that */
+    /* This is simple with public key only - nothing amazing */
+    ret = mbedtls_pk_verify(&pubkey_device, MBEDTLS_MD_SHA256, hash_received, sizeof(hash_received), signature,
+                            signature_len);
     printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
 
     /* Host receives certificate and signature (signed with private key) */
@@ -110,7 +116,8 @@ cert_playground(void) {
         printf("Invalid certificate. Hard error, potential clone detected!\r\n");
     } else {
         /* Verify signature at this point */
-        ret = mbedtls_pk_verify(&crt_device.pk, MBEDTLS_MD_SHA256, hash, sizeof(hash), signature, signature_len);
+        ret = mbedtls_pk_verify(&crt_device.pk, MBEDTLS_MD_SHA256, hash_received, sizeof(hash_received), signature,
+                                signature_len);
         printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
         if (ret != 0) {
             printf("Signature not signed by device private key. Hard error, potential clone detected!\r\n");
