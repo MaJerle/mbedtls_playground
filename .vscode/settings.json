@@ -24,7 +24,9 @@
         "*.hexarr": "c",
         "bignum_core.h": "c",
         "bignum.h": "c",
-        "pk.h": "c"
+        "pk.h": "c",
+        "common.h": "c",
+        "ecdh.h": "c"
     },
     "esbonio.sphinx.confDir": ""
 }

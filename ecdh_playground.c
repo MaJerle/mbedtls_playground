@@ -38,18 +38,11 @@ static uint8_t ec_device_pubkey_str[] = {
 #include "certificates/ec_device_pub.key.hexarr"
     , 0};
 
-static mbedtls_x509_crt x509_crt_oem;
-static mbedtls_pk_context pk_key_oem;
-static mbedtls_pk_context pk_pubkey_oem;
-static mbedtls_x509_crt x509_crt_device;
-static mbedtls_pk_context pk_key_device;
-static mbedtls_pk_context pk_pubkey_device;
-static mbedtls_ecdh_context ecdh_oem;
-static mbedtls_ecdh_context ecdh_device;
-
 static int
 fn_rng(void* par, unsigned char* output, size_t len) {
     static uint32_t number;
+
+    (void)par;
 
     number *= (uint32_t)len;
     number += 0x12345F1A;
@@ -64,49 +57,77 @@ ecdh_playground(void) {
     int ret;
     uint32_t flags = 0;
 
+    mbedtls_x509_crt x509_crt_oem;
+    mbedtls_pk_context pk_key_oem;
+    mbedtls_x509_crt x509_crt_device;
+    mbedtls_pk_context pk_key_device;
+    mbedtls_ecdh_context ecdh_oem;
+    mbedtls_ecdh_context ecdh_device;
+    mbedtls_ecp_group grp_A;
+    mbedtls_ecp_group grp_B;
+    mbedtls_mpi priv_key_A;
+    mbedtls_mpi priv_key_B;
+    mbedtls_mpi shared_secret_A;
+    mbedtls_mpi shared_secret_B;
+    mbedtls_ecp_point pub_key_A;
+    mbedtls_ecp_point pub_key_B;
+
     /* Parse oem certificate and private key -> self signed certificate, oem of trust */
     mbedtls_x509_crt_init(&x509_crt_oem);
+    mbedtls_pk_init(&pk_key_oem);
+    mbedtls_x509_crt_init(&x509_crt_device);
+    mbedtls_pk_init(&pk_key_device);
+
+    /* Parse first device data */
     ret = mbedtls_x509_crt_parse(&x509_crt_oem, ec_oem_ca_str, sizeof(ec_oem_ca_str));
     printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
-    mbedtls_pk_init(&pk_key_oem);
     ret = mbedtls_pk_parse_key(&pk_key_oem, ec_oem_key_str, sizeof(ec_oem_key_str), NULL, 0, NULL, NULL);
     printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
-    mbedtls_pk_init(&pk_pubkey_oem);
-    ret = mbedtls_pk_parse_public_key(&pk_pubkey_oem, ec_oem_pubkey_str, sizeof(ec_oem_pubkey_str));
-    printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
 
-    /* Parse device certificate and its private key -> signed by trusted private key */
-    mbedtls_x509_crt_init(&x509_crt_device);
+    /* Parse second device data */
     ret = mbedtls_x509_crt_parse(&x509_crt_device, ec_device_ca_str, sizeof(ec_device_ca_str));
     printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
-    mbedtls_pk_init(&pk_key_device);
     ret = mbedtls_pk_parse_key(&pk_key_device, ec_device_key_str, sizeof(ec_device_key_str), NULL, 0, NULL, NULL);
     printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
-    mbedtls_pk_init(&pk_pubkey_device);
-    ret = mbedtls_pk_parse_public_key(&pk_pubkey_device, ec_device_pubkey_str, sizeof(ec_device_pubkey_str));
-    printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
+
+    /* Try to use parsed values here, let's see how it fails ;) */
 
     /* Let's start ECDH playground now */
     mbedtls_ecdh_init(&ecdh_oem);
     mbedtls_ecdh_init(&ecdh_device);
-    ret = mbedtls_ecdh_setup(&ecdh_device, MBEDTLS_ECP_DP_SECP256R1);
-    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
-    ret = mbedtls_ecdh_setup(&ecdh_device, MBEDTLS_ECP_DP_SECP256R1);
-    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
-
-    mbedtls_ecp_group grp_A, grp_B;
-    mbedtls_mpi priv_key_A, priv_key_B, shared_secret_A, shared_secret_B;
-    mbedtls_ecp_point pub_key_A, pub_key_B;
-
     mbedtls_ecp_group_init(&grp_A);
     mbedtls_ecp_group_init(&grp_B);
     mbedtls_mpi_init(&priv_key_A);
     mbedtls_mpi_init(&priv_key_B);
-    mbedtls_mpi_init(&shared_secret_A);
-    mbedtls_mpi_init(&shared_secret_B);
     mbedtls_ecp_point_init(&pub_key_A);
     mbedtls_ecp_point_init(&pub_key_B);
+    mbedtls_mpi_init(&shared_secret_A);
+    mbedtls_mpi_init(&shared_secret_B);
 
+    /* Setup for both sides */
+    ret = mbedtls_ecdh_setup(&ecdh_device, MBEDTLS_ECP_DP_SECP256R1);
+    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
+    ret = mbedtls_ecdh_setup(&ecdh_device, MBEDTLS_ECP_DP_SECP256R1);
+    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
+
+#if 1
+    /* Export values from the certificate -> only group and public keys will work */
+    /* Private key is not part of the certificate part */
+    /* Use it as parameter to avoid runtime issue, but ignore priv_key_X values */
+    /* Device A = OEM */
+    /* Device B = Client device */
+    ret = mbedtls_ecp_export(mbedtls_pk_ec(x509_crt_oem.pk), &grp_A, &priv_key_A, &pub_key_A);
+    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
+    ret = mbedtls_ecp_export(mbedtls_pk_ec(x509_crt_device.pk), &grp_B, &priv_key_B, &pub_key_B);
+    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
+
+    /* Here we have to load private keys */
+    const mbedtls_ecp_keypair* k_A = mbedtls_pk_ec(pk_key_oem);
+    const mbedtls_ecp_keypair* k_B = mbedtls_pk_ec(pk_key_device);
+    mbedtls_mpi_copy(&priv_key_A, &k_A->MBEDTLS_PRIVATE(d));
+    mbedtls_mpi_copy(&priv_key_B, &k_B->MBEDTLS_PRIVATE(d));
+
+#else
     /* Load ECP parameters, then generate public/private key pairs */
     ret = mbedtls_ecp_group_load(&grp_A, MBEDTLS_ECP_DP_SECP256R1);
     printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
@@ -118,6 +139,7 @@ ecdh_playground(void) {
     printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
     ret = mbedtls_ecdh_gen_public(&grp_B, &priv_key_B, &pub_key_B, fn_rng, NULL);
     printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
+#endif
 
     /* Now compute twice... */
     /* Alice side */
@@ -130,13 +152,6 @@ ecdh_playground(void) {
     ret = mbedtls_mpi_cmp_mpi(&shared_secret_A, &shared_secret_B);
     printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
 
-    /* Here all has to be freed, or it won't work indeed */
-    mbedtls_pk_free(&pk_key_oem);
-    mbedtls_pk_free(&pk_pubkey_oem);
-    mbedtls_pk_free(&pk_key_device);
-    mbedtls_pk_free(&pk_pubkey_device);
-    mbedtls_x509_crt_free(&x509_crt_oem);
-    mbedtls_x509_crt_free(&x509_crt_device);
     mbedtls_ecdh_free(&ecdh_oem);
     mbedtls_ecdh_free(&ecdh_device);
     mbedtls_ecp_group_free(&grp_A);
@@ -147,6 +162,12 @@ ecdh_playground(void) {
     mbedtls_ecp_point_free(&pub_key_B);
     mbedtls_mpi_free(&shared_secret_A);
     mbedtls_mpi_free(&shared_secret_B);
+
+    /* Here all has to be freed, or it won't work indeed */
+    mbedtls_pk_free(&pk_key_oem);
+    mbedtls_pk_free(&pk_key_device);
+    mbedtls_x509_crt_free(&x509_crt_oem);
+    mbedtls_x509_crt_free(&x509_crt_device);
 
     /* HOST SIDE END */
 
