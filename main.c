@@ -83,10 +83,14 @@ const uint8_t data_encrypted_aes256_hash_digest[] = {
 };
 
 extern int cert_playground(void);
+extern int ecdh_playground(void);
 
 int
 main(void) {
     volatile int res;
+
+    ecdh_playground();
+    return 0;
 
     cert_playground();
     return 0;
@@ -104,7 +108,7 @@ main(void) {
         };
 
         for (size_t i = 0; i < sizeof(device_ids) / sizeof(device_ids[0]); ++i) {
-            const uint8_t* id = &device_ids[i];
+            const uint8_t* id = device_ids[i];
             mbedtls_sha256_init(&sha_ctx);
 
             /* Process all bytes */

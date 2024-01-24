@@ -12,6 +12,7 @@ file(GLOB MBEDTLS_FILES ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/*.c)
 target_sources(${PROJECT_NAME} PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/main.c
     ${CMAKE_CURRENT_LIST_DIR}/cert_playground.c
+    ${CMAKE_CURRENT_LIST_DIR}/ecdh_playground.c
     ${MBEDTLS_FILES}
 )
 

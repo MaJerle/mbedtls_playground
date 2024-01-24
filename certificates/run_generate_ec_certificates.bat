@@ -8,9 +8,13 @@ openssl req -x509 -new -nodes -key ec_oem.key -sha256 -days 99999 -out ec_oem.cr
 
 :: ec_device certificate, signed with root CA
 echo "generate ec_device CA"
+:: Create private key
 openssl ecparam -genkey -name prime256v1 -out ec_device.key
+:: Create public key corresponding to the private one
 openssl ec -in ec_device.key -pubout -out ec_device_pub.key
+:: Prepare signing request
 openssl req -new -sha256 -key ec_device.key -out ec_device.csr -subj "/C=US/ST=CA/O=MyOrg, Inc./CN=ec_device"
+:: Sign the request with root private key
 openssl x509 -req -in ec_device.csr -CA ec_oem.crt -CAkey ec_oem.key -CAcreateserial -out ec_device.crt -days 99999 -sha256
 
 :: Print

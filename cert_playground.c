@@ -48,10 +48,14 @@ static uint8_t hash_sent[32], hash_received[32];
 static uint8_t signature[128];
 static size_t signature_len;
 
-int
+static int
 fn_rng(void* par, unsigned char* output, size_t len) {
+    static uint32_t number;
+
+    number *= (uint32_t)len;
+    number += 0x12345F1A;
     for (size_t i = 0; i < len; ++i) {
-        output[i] = len * 2 + i - 1;
+        output[i] = (len * 2 + i - 1) ^ ((uint8_t)number);
     }
     return 0;
 }
