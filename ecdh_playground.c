@@ -57,10 +57,10 @@ ecdh_playground(void) {
     int ret;
     uint32_t flags = 0;
 
-    mbedtls_x509_crt x509_crt_oem;
-    mbedtls_pk_context pk_key_oem;
     mbedtls_x509_crt x509_crt_device;
     mbedtls_pk_context pk_key_device;
+    mbedtls_x509_crt x509_crt_oem;
+    mbedtls_pk_context pk_key_oem;
     mbedtls_ecdh_context ecdh_oem;
     mbedtls_ecdh_context ecdh_device;
     mbedtls_ecp_group grp_A;
@@ -72,11 +72,21 @@ ecdh_playground(void) {
     mbedtls_ecp_point pub_key_A;
     mbedtls_ecp_point pub_key_B;
 
-    /* Parse oem certificate and private key -> self signed certificate, oem of trust */
-    mbedtls_x509_crt_init(&x509_crt_oem);
-    mbedtls_pk_init(&pk_key_oem);
+    /* Init all */
     mbedtls_x509_crt_init(&x509_crt_device);
     mbedtls_pk_init(&pk_key_device);
+    mbedtls_x509_crt_init(&x509_crt_oem);
+    mbedtls_pk_init(&pk_key_oem);
+    mbedtls_ecdh_init(&ecdh_oem);
+    mbedtls_ecdh_init(&ecdh_device);
+    mbedtls_ecp_group_init(&grp_A);
+    mbedtls_ecp_group_init(&grp_B);
+    mbedtls_mpi_init(&priv_key_A);
+    mbedtls_mpi_init(&priv_key_B);
+    mbedtls_ecp_point_init(&pub_key_A);
+    mbedtls_ecp_point_init(&pub_key_B);
+    mbedtls_mpi_init(&shared_secret_A);
+    mbedtls_mpi_init(&shared_secret_B);
 
     /* Parse first device data */
     ret = mbedtls_x509_crt_parse(&x509_crt_oem, ec_oem_ca_str, sizeof(ec_oem_ca_str));
@@ -90,44 +100,28 @@ ecdh_playground(void) {
     ret = mbedtls_pk_parse_key(&pk_key_device, ec_device_key_str, sizeof(ec_device_key_str), NULL, 0, NULL, NULL);
     printf("RET: %d, line: %d, flags: %u\r\n", (int)ret, (int)__LINE__, (uint32_t)flags);
 
-    /* Try to use parsed values here, let's see how it fails ;) */
-
-    /* Let's start ECDH playground now */
-    mbedtls_ecdh_init(&ecdh_oem);
-    mbedtls_ecdh_init(&ecdh_device);
-    mbedtls_ecp_group_init(&grp_A);
-    mbedtls_ecp_group_init(&grp_B);
-    mbedtls_mpi_init(&priv_key_A);
-    mbedtls_mpi_init(&priv_key_B);
-    mbedtls_ecp_point_init(&pub_key_A);
-    mbedtls_ecp_point_init(&pub_key_B);
-    mbedtls_mpi_init(&shared_secret_A);
-    mbedtls_mpi_init(&shared_secret_B);
-
-    /* Setup for both sides */
+    /* ECDH setup for both devices */
     ret = mbedtls_ecdh_setup(&ecdh_device, MBEDTLS_ECP_DP_SECP256R1);
     printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
     ret = mbedtls_ecdh_setup(&ecdh_device, MBEDTLS_ECP_DP_SECP256R1);
     printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
 
-#if 1
-    /* Export values from the certificate -> only group and public keys will work */
-    /* Private key is not part of the certificate part */
-    /* Use it as parameter to avoid runtime issue, but ignore priv_key_X values */
-    /* Device A = OEM */
-    /* Device B = Client device */
-    ret = mbedtls_ecp_export(mbedtls_pk_ec(x509_crt_oem.pk), &grp_A, &priv_key_A, &pub_key_A);
-    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
-    ret = mbedtls_ecp_export(mbedtls_pk_ec(x509_crt_device.pk), &grp_B, &priv_key_B, &pub_key_B);
-    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
+#if 0
+    /* This is when you parse data as static keys */
 
-    /* Here we have to load private keys */
-    const mbedtls_ecp_keypair* k_A = mbedtls_pk_ec(pk_key_oem);
-    const mbedtls_ecp_keypair* k_B = mbedtls_pk_ec(pk_key_device);
-    mbedtls_mpi_copy(&priv_key_A, &k_A->MBEDTLS_PRIVATE(d));
-    mbedtls_mpi_copy(&priv_key_B, &k_B->MBEDTLS_PRIVATE(d));
-
+    /* Export group and pub key from certificate pk_context, there is nothing to export for private key */
+    ret = mbedtls_ecp_export(mbedtls_pk_ec(x509_crt_oem.pk), &grp_A, NULL, &pub_key_A);
+    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
+    ret = mbedtls_ecp_export(mbedtls_pk_ec(x509_crt_device.pk), &grp_B, NULL, &pub_key_B);
+    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
+    /* Export private key from the private key pk_context, leave the other parameters empty */
+    ret = mbedtls_ecp_export(mbedtls_pk_ec(pk_key_oem), NULL, &priv_key_A, NULL);
+    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
+    ret = mbedtls_ecp_export(mbedtls_pk_ec(pk_key_device), NULL, &priv_key_B, NULL);
+    printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
 #else
+    /* This is when you generate keys on the fly */
+
     /* Load ECP parameters, then generate public/private key pairs */
     ret = mbedtls_ecp_group_load(&grp_A, MBEDTLS_ECP_DP_SECP256R1);
     printf("RET: %d, line: %d\r\n", (int)ret, (int)__LINE__);
