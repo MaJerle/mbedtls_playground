@@ -2,25 +2,10 @@
  * \file psa_util.h
  *
  * \brief Utility functions for the use of the PSA Crypto library.
- *
- * \warning This function is not part of the public API and may
- *          change at any time.
  */
 /*
  *  Copyright The Mbed TLS Contributors
- *  SPDX-License-Identifier: Apache-2.0
- *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may
- *  not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *  http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- *  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
  */
 
 #ifndef MBEDTLS_PSA_UTIL_H
@@ -29,256 +14,9 @@
 
 #include "mbedtls/build_info.h"
 
-#if defined(MBEDTLS_PSA_CRYPTO_C)
-
 #include "psa/crypto.h"
 
-#include "mbedtls/ecp.h"
-#include "mbedtls/md.h"
-#include "mbedtls/pk.h"
-#include "mbedtls/oid.h"
-#include "mbedtls/error.h"
-
-#include <string.h>
-
-/* Translations for symmetric crypto. */
-
-static inline psa_key_type_t mbedtls_psa_translate_cipher_type(
-    mbedtls_cipher_type_t cipher )
-{
-    switch( cipher )
-    {
-        case MBEDTLS_CIPHER_AES_128_CCM:
-        case MBEDTLS_CIPHER_AES_192_CCM:
-        case MBEDTLS_CIPHER_AES_256_CCM:
-        case MBEDTLS_CIPHER_AES_128_CCM_STAR_NO_TAG:
-        case MBEDTLS_CIPHER_AES_192_CCM_STAR_NO_TAG:
-        case MBEDTLS_CIPHER_AES_256_CCM_STAR_NO_TAG:
-        case MBEDTLS_CIPHER_AES_128_GCM:
-        case MBEDTLS_CIPHER_AES_192_GCM:
-        case MBEDTLS_CIPHER_AES_256_GCM:
-        case MBEDTLS_CIPHER_AES_128_CBC:
-        case MBEDTLS_CIPHER_AES_192_CBC:
-        case MBEDTLS_CIPHER_AES_256_CBC:
-        case MBEDTLS_CIPHER_AES_128_ECB:
-        case MBEDTLS_CIPHER_AES_192_ECB:
-        case MBEDTLS_CIPHER_AES_256_ECB:
-            return( PSA_KEY_TYPE_AES );
-
-        /* ARIA not yet supported in PSA. */
-        /* case MBEDTLS_CIPHER_ARIA_128_CCM:
-           case MBEDTLS_CIPHER_ARIA_192_CCM:
-           case MBEDTLS_CIPHER_ARIA_256_CCM:
-           case MBEDTLS_CIPHER_ARIA_128_CCM_STAR_NO_TAG:
-           case MBEDTLS_CIPHER_ARIA_192_CCM_STAR_NO_TAG:
-           case MBEDTLS_CIPHER_ARIA_256_CCM_STAR_NO_TAG:
-           case MBEDTLS_CIPHER_ARIA_128_GCM:
-           case MBEDTLS_CIPHER_ARIA_192_GCM:
-           case MBEDTLS_CIPHER_ARIA_256_GCM:
-           case MBEDTLS_CIPHER_ARIA_128_CBC:
-           case MBEDTLS_CIPHER_ARIA_192_CBC:
-           case MBEDTLS_CIPHER_ARIA_256_CBC:
-               return( PSA_KEY_TYPE_ARIA ); */
-
-        default:
-            return( 0 );
-    }
-}
-
-static inline psa_algorithm_t mbedtls_psa_translate_cipher_mode(
-    mbedtls_cipher_mode_t mode, size_t taglen )
-{
-    switch( mode )
-    {
-        case MBEDTLS_MODE_ECB:
-            return( PSA_ALG_ECB_NO_PADDING );
-        case MBEDTLS_MODE_GCM:
-            return( PSA_ALG_AEAD_WITH_SHORTENED_TAG( PSA_ALG_GCM, taglen ) );
-        case MBEDTLS_MODE_CCM:
-            return( PSA_ALG_AEAD_WITH_SHORTENED_TAG( PSA_ALG_CCM, taglen ) );
-        case MBEDTLS_MODE_CCM_STAR_NO_TAG:
-            return PSA_ALG_CCM_STAR_NO_TAG;
-        case MBEDTLS_MODE_CBC:
-            if( taglen == 0 )
-                return( PSA_ALG_CBC_NO_PADDING );
-            else
-                return( 0 );
-        default:
-            return( 0 );
-    }
-}
-
-static inline psa_key_usage_t mbedtls_psa_translate_cipher_operation(
-    mbedtls_operation_t op )
-{
-    switch( op )
-    {
-        case MBEDTLS_ENCRYPT:
-            return( PSA_KEY_USAGE_ENCRYPT );
-        case MBEDTLS_DECRYPT:
-            return( PSA_KEY_USAGE_DECRYPT );
-        default:
-            return( 0 );
-    }
-}
-
-/* Translations for hashing. */
-
-/* Note: this function should not be used from inside the library, use
- * mbedtls_hash_info_psa_from_md() from the internal hash_info.h instead.
- * It is kept only for compatibility in case applications were using it. */
-static inline psa_algorithm_t mbedtls_psa_translate_md( mbedtls_md_type_t md_alg )
-{
-    switch( md_alg )
-    {
-#if defined(MBEDTLS_MD5_C) || defined(PSA_WANT_ALG_MD5)
-    case MBEDTLS_MD_MD5:
-        return( PSA_ALG_MD5 );
-#endif
-#if defined(MBEDTLS_SHA1_C) || defined(PSA_WANT_ALG_SHA_1)
-    case MBEDTLS_MD_SHA1:
-        return( PSA_ALG_SHA_1 );
-#endif
-#if defined(MBEDTLS_SHA224_C) || defined(PSA_WANT_ALG_SHA_224)
-    case MBEDTLS_MD_SHA224:
-        return( PSA_ALG_SHA_224 );
-#endif
-#if defined(MBEDTLS_SHA256_C) || defined(PSA_WANT_ALG_SHA_256)
-    case MBEDTLS_MD_SHA256:
-        return( PSA_ALG_SHA_256 );
-#endif
-#if defined(MBEDTLS_SHA384_C) || defined(PSA_WANT_ALG_SHA_384)
-    case MBEDTLS_MD_SHA384:
-        return( PSA_ALG_SHA_384 );
-#endif
-#if defined(MBEDTLS_SHA512_C) || defined(PSA_WANT_ALG_SHA_512)
-    case MBEDTLS_MD_SHA512:
-        return( PSA_ALG_SHA_512 );
-#endif
-#if defined(MBEDTLS_RIPEMD160_C) || defined(PSA_WANT_ALG_RIPEMD160)
-    case MBEDTLS_MD_RIPEMD160:
-        return( PSA_ALG_RIPEMD160 );
-#endif
-    case MBEDTLS_MD_NONE:
-        return( 0 );
-    default:
-        return( 0 );
-    }
-}
-
-/* Translations for ECC. */
-
-static inline int mbedtls_psa_get_ecc_oid_from_id(
-    psa_ecc_family_t curve, size_t bits,
-    char const **oid, size_t *oid_len )
-{
-    switch( curve )
-    {
-        case PSA_ECC_FAMILY_SECP_R1:
-            switch( bits )
-            {
-#if defined(MBEDTLS_ECP_DP_SECP192R1_ENABLED)
-                case 192:
-                    *oid = MBEDTLS_OID_EC_GRP_SECP192R1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_SECP192R1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_SECP192R1_ENABLED */
-#if defined(MBEDTLS_ECP_DP_SECP224R1_ENABLED)
-                case 224:
-                    *oid = MBEDTLS_OID_EC_GRP_SECP224R1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_SECP224R1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_SECP224R1_ENABLED */
-#if defined(MBEDTLS_ECP_DP_SECP256R1_ENABLED)
-                case 256:
-                    *oid = MBEDTLS_OID_EC_GRP_SECP256R1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_SECP256R1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_SECP256R1_ENABLED */
-#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
-                case 384:
-                    *oid = MBEDTLS_OID_EC_GRP_SECP384R1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_SECP384R1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_SECP384R1_ENABLED */
-#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
-                case 521:
-                    *oid = MBEDTLS_OID_EC_GRP_SECP521R1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_SECP521R1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_SECP521R1_ENABLED */
-            }
-            break;
-        case PSA_ECC_FAMILY_SECP_K1:
-            switch( bits )
-            {
-#if defined(MBEDTLS_ECP_DP_SECP192K1_ENABLED)
-                case 192:
-                    *oid = MBEDTLS_OID_EC_GRP_SECP192K1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_SECP192K1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_SECP192K1_ENABLED */
-#if defined(MBEDTLS_ECP_DP_SECP224K1_ENABLED)
-                case 224:
-                    *oid = MBEDTLS_OID_EC_GRP_SECP224K1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_SECP224K1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_SECP224K1_ENABLED */
-#if defined(MBEDTLS_ECP_DP_SECP256K1_ENABLED)
-                case 256:
-                    *oid = MBEDTLS_OID_EC_GRP_SECP256K1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_SECP256K1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_SECP256K1_ENABLED */
-            }
-            break;
-        case PSA_ECC_FAMILY_BRAINPOOL_P_R1:
-            switch( bits )
-            {
-#if defined(MBEDTLS_ECP_DP_BP256R1_ENABLED)
-                case 256:
-                    *oid = MBEDTLS_OID_EC_GRP_BP256R1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_BP256R1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_BP256R1_ENABLED */
-#if defined(MBEDTLS_ECP_DP_BP384R1_ENABLED)
-                case 384:
-                    *oid = MBEDTLS_OID_EC_GRP_BP384R1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_BP384R1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_BP384R1_ENABLED */
-#if defined(MBEDTLS_ECP_DP_BP512R1_ENABLED)
-                case 512:
-                    *oid = MBEDTLS_OID_EC_GRP_BP512R1;
-                    *oid_len = MBEDTLS_OID_SIZE( MBEDTLS_OID_EC_GRP_BP512R1 );
-                    return( 0 );
-#endif /* MBEDTLS_ECP_DP_BP512R1_ENABLED */
-            }
-            break;
-    }
-    (void) oid;
-    (void) oid_len;
-    return( -1 );
-}
-
-#define MBEDTLS_PSA_MAX_EC_PUBKEY_LENGTH \
-    PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE( PSA_VENDOR_ECC_MAX_CURVE_BITS )
-
-/* This function transforms an ECC group identifier from
- * https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8
- * into a PSA ECC group identifier. */
-#if defined(MBEDTLS_ECP_C)
-static inline psa_key_type_t mbedtls_psa_parse_tls_ecc_group(
-    uint16_t tls_ecc_grp_reg_id, size_t *bits )
-{
-    const mbedtls_ecp_curve_info *curve_info =
-        mbedtls_ecp_curve_info_from_tls_id( tls_ecc_grp_reg_id );
-    if( curve_info == NULL )
-        return( 0 );
-    return( PSA_KEY_TYPE_ECC_KEY_PAIR(
-                mbedtls_ecc_group_to_psa( curve_info->grp_id, bits ) ) );
-}
-#endif /* MBEDTLS_ECP_C */
+#if defined(MBEDTLS_PSA_CRYPTO_C)
 
 /* Expose whatever RNG the PSA subsystem uses to applications using the
  * mbedtls_xxx API. The declarations and definitions here need to be
@@ -292,7 +30,7 @@ static inline psa_key_type_t mbedtls_psa_parse_tls_ecc_group(
  * This type name is not part of the Mbed TLS stable API. It may be renamed
  * or moved without warning.
  */
-typedef int mbedtls_f_rng_t( void *p_rng, unsigned char *output, size_t output_size );
+typedef int mbedtls_f_rng_t(void *p_rng, unsigned char *output, size_t output_size);
 
 #if defined(MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG)
 
@@ -331,9 +69,9 @@ typedef int mbedtls_f_rng_t( void *p_rng, unsigned char *output, size_t output_s
  *                      `MBEDTLS_ERR_CTR_DRBG_xxx` or
  *                      `MBEDTLS_ERR_HMAC_DRBG_xxx` on error.
  */
-int mbedtls_psa_get_random( void *p_rng,
-                            unsigned char *output,
-                            size_t output_size );
+int mbedtls_psa_get_random(void *p_rng,
+                           unsigned char *output,
+                           size_t output_size);
 
 /** The random generator state for the PSA subsystem.
  *
@@ -364,6 +102,81 @@ extern mbedtls_psa_drbg_context_t *const mbedtls_psa_random_state;
 
 #endif /* !defined(MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG) */
 
-#endif /* MBEDTLS_PSA_CRYPTO_C */
+/** \defgroup psa_tls_helpers TLS helper functions
+ * @{
+ */
+#if defined(PSA_WANT_KEY_TYPE_ECC_PUBLIC_KEY)
+#include <mbedtls/ecp.h>
 
+/** Convert an ECC curve identifier from the Mbed TLS encoding to PSA.
+ *
+ * \param grpid         An Mbed TLS elliptic curve identifier
+ *                      (`MBEDTLS_ECP_DP_xxx`).
+ * \param[out] bits     On success the bit size of the curve; 0 on failure.
+ *
+ * \return              If the curve is supported in the PSA API, this function
+ *                      returns the proper PSA curve identifier
+ *                      (`PSA_ECC_FAMILY_xxx`). This holds even if the curve is
+ *                      not supported by the ECP module.
+ * \return              \c 0 if the curve is not supported in the PSA API.
+ */
+psa_ecc_family_t mbedtls_ecc_group_to_psa(mbedtls_ecp_group_id grpid,
+                                          size_t *bits);
+
+/** Convert an ECC curve identifier from the PSA encoding to Mbed TLS.
+ *
+ * \param family        A PSA elliptic curve family identifier
+ *                      (`PSA_ECC_FAMILY_xxx`).
+ * \param bits          The bit-length of a private key on \p curve.
+ *
+ * \return              If the curve is supported in the PSA API, this function
+ *                      returns the corresponding Mbed TLS elliptic curve
+ *                      identifier (`MBEDTLS_ECP_DP_xxx`).
+ * \return              #MBEDTLS_ECP_DP_NONE if the combination of \c curve
+ *                      and \p bits is not supported.
+ */
+mbedtls_ecp_group_id mbedtls_ecc_group_from_psa(psa_ecc_family_t family,
+                                                size_t bits);
+#endif /* PSA_WANT_KEY_TYPE_ECC_PUBLIC_KEY */
+
+/**
+ * \brief           This function returns the PSA algorithm identifier
+ *                  associated with the given digest type.
+ *
+ * \param md_type   The type of digest to search for. Must not be NONE.
+ *
+ * \warning         If \p md_type is \c MBEDTLS_MD_NONE, this function will
+ *                  not return \c PSA_ALG_NONE, but an invalid algorithm.
+ *
+ * \warning         This function does not check if the algorithm is
+ *                  supported, it always returns the corresponding identifier.
+ *
+ * \return          The PSA algorithm identifier associated with \p md_type,
+ *                  regardless of whether it is supported or not.
+ */
+static inline psa_algorithm_t mbedtls_md_psa_alg_from_type(mbedtls_md_type_t md_type)
+{
+    return PSA_ALG_CATEGORY_HASH | (psa_algorithm_t) md_type;
+}
+
+/**
+ * \brief           This function returns the given digest type
+ *                  associated with the PSA algorithm identifier.
+ *
+ * \param psa_alg   The PSA algorithm identifier to search for.
+ *
+ * \warning         This function does not check if the algorithm is
+ *                  supported, it always returns the corresponding identifier.
+ *
+ * \return          The MD type associated with \p psa_alg,
+ *                  regardless of whether it is supported or not.
+ */
+static inline mbedtls_md_type_t mbedtls_md_type_from_psa_alg(psa_algorithm_t psa_alg)
+{
+    return (mbedtls_md_type_t) (psa_alg & PSA_ALG_HASH_MASK);
+}
+
+/**@}*/
+
+#endif /* MBEDTLS_PSA_CRYPTO_C */
 #endif /* MBEDTLS_PSA_UTIL_H */

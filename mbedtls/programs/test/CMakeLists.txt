@@ -3,6 +3,8 @@ set(libs
 )
 
 set(executables_libs
+    metatest
+    query_included_headers
     selftest
     udp_proxy
 )
@@ -44,11 +46,13 @@ if(GEN_FILES)
             ${PERL}
                 ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/generate_query_config.pl
                 ${CMAKE_CURRENT_SOURCE_DIR}/../../include/mbedtls/mbedtls_config.h
+                ${CMAKE_CURRENT_SOURCE_DIR}/../../include/psa/crypto_config.h
                 ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/data_files/query_config.fmt
                 ${CMAKE_CURRENT_BINARY_DIR}/query_config.c
         DEPENDS
             ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/generate_query_config.pl
             ${CMAKE_CURRENT_SOURCE_DIR}/../../include/mbedtls/mbedtls_config.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../include/psa/crypto_config.h
             ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/data_files/query_config.fmt
     )
     # this file will also be used in another directory, so create a target, see
@@ -69,6 +73,7 @@ foreach(exe IN LISTS executables_libs executables_mbedcrypto)
     add_executable(${exe} ${exe}.c $<TARGET_OBJECTS:mbedtls_test>
         ${extra_sources})
     target_include_directories(${exe} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../tests/include)
+    target_include_directories(${exe} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../library)
     if(exe STREQUAL "query_compile_time_config")
         target_include_directories(${exe} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     endif()

@@ -26,7 +26,10 @@
         "bignum.h": "c",
         "pk.h": "c",
         "common.h": "c",
-        "ecdh.h": "c"
+        "ecdh.h": "c",
+        "psa_crypto_driver_wrappers_no_static.h": "c",
+        "pkcs12.h": "c",
+        "winsock2.h": "c"
     },
     "esbonio.sphinx.confDir": ""
 }
