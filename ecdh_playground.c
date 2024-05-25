@@ -25,17 +25,11 @@ static uint8_t ec_oem_ca_str[] = {
 static uint8_t ec_oem_key_str[] = {
 #include "certificates/ec_oem.key.hexarr"
     , 0};
-static uint8_t ec_oem_pubkey_str[] = {
-#include "certificates/ec_oem_pub.key.hexarr"
-    , 0};
 static uint8_t ec_device_ca_str[] = {
 #include "certificates/ec_device.crt.hexarr"
     , 0};
 static uint8_t ec_device_key_str[] = {
 #include "certificates/ec_device.key.hexarr"
-    , 0};
-static uint8_t ec_device_pubkey_str[] = {
-#include "certificates/ec_device_pub.key.hexarr"
     , 0};
 
 static int
@@ -57,20 +51,27 @@ ecdh_playground(void) {
     int ret;
     uint32_t flags = 0;
 
+    /* Certificates */
     mbedtls_x509_crt x509_crt_device;
-    mbedtls_pk_context pk_key_device;
     mbedtls_x509_crt x509_crt_oem;
+    /* Private keys, for PEM format parsing */
+    mbedtls_pk_context pk_key_device;
     mbedtls_pk_context pk_key_oem;
+    /* ECDH key exchange context */
     mbedtls_ecdh_context ecdh_oem;
     mbedtls_ecdh_context ecdh_device;
+    /* PKI curve group data */
     mbedtls_ecp_group grp_A;
     mbedtls_ecp_group grp_B;
+    /* Private key data of both devices */
     mbedtls_mpi priv_key_A;
     mbedtls_mpi priv_key_B;
-    mbedtls_mpi shared_secret_A;
-    mbedtls_mpi shared_secret_B;
+    /* Public key point of both devices */
     mbedtls_ecp_point pub_key_A;
     mbedtls_ecp_point pub_key_B;
+    /* Shared secret for both devices */
+    mbedtls_mpi shared_secret_A;
+    mbedtls_mpi shared_secret_B;
 
     /* Init all */
     mbedtls_x509_crt_init(&x509_crt_device);
